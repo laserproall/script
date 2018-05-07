@@ -1,0 +1,137 @@
+#!/usr/bin/env python
+# -*- coding:utf-8 -*-
+import sys,getopt,commands,time
+
+# 定义脚本说明
+def usage():
+    scriptName=sys.argv[0]
+    print """Usage:  
+    """+scriptName+""" action(add) hostname profile mac interface ipaddress
+    """+scriptName+""" action(edit) hostname newprofile
+    """+scriptName+""" action(remove) hostname
+    """+scriptName+""" --action=remove --name=test1
+Arguments:
+    --action        Cobbler action eg.(add|edit|remove)
+    --help          Print help info
+    --name          Hostname
+    --profile       Opertion system release for cobbler profile
+    --mac-address   Pxe boot physical host MAC address
+    --interface     The physical host network card name
+    --iaas-ip       IaaS Manager Network IP address
+    --iaas-mask     IaaS Manager Network Subnet mask
+    --iaas-gw       IaaS Manager Network Gateway
+    --app-vlan      Production network Vlan
+    --app-ip        Production network IP address 
+    --app-mask      Production network Subnetmask
+    --app-gw        Profuction network Gateway
+    --bond-mode     Linux Network Bond Mode
+Example:
+    """+scriptName+""" --action=add --name=iaas-test \\
+                --profile=RHEL6.6-x86_64 --mac-address=00:50:56:a6:1c:31 --interface=eth0 \\
+                --iaas-ip=160.0.0.1 --iaas-mask=255.255.240.0 --iaas-gw=160.0.7.254 \\
+                --app-vlan=100 --app-ip=10.162.0.1 --app-mask=255.255.250.0 --app-gw=10.162.0.254 \\
+                --bond-mode=4
+    """+scriptName+""" --action=edit --name=test1 --profile=RHEL6.0-x86_64
+    """
+if len(sys.argv) < 2:
+    usage()
+    sys.exit()
+logFile="/home/sa/shell/host_history/"+time.strftime("%Y-%m-%d")+".CSV"
+curTime=time.strftime('%Y-%m-%d %H:%M:%S')
+f = open(logFile,'a')
+f.write(curTime+","+" ".join(sys.argv)+"\n")
+
+# 定义可接收参数列表
+optionList=["help","action=","name=","profile=","mac-address=","interface=","iaas-ip=","iaas-mask=","iaas-gw=","app-vlan=","app-ip=","app-mask=","app-gw=","bond-mode="]
+# 开始处理参数
+try:
+    options, args = getopt.getopt(sys.argv[1:],"h",optionList)
+    for option,value in options:
+        if option in ("-h", "--help"):
+            usage()
+            sys.exit()
+        elif option in ("--action"):
+            action=value
+        elif option in ("--name"):
+            name=value
+        elif option in ("--profile"):
+            profile=value
+        elif option in ("--mac-address"):
+            macAddress=value.replace("-",":")
+        elif option in ("--interface"):
+            for i in value:
+                if i.isdigit():
+                    if int(i) != 0:
+                        interface='eth' + str(int(i)-1)
+                    else:
+                        interface='eth0'
+                    break
+            #interface='eth' + str(int(value[3:])-1)
+        elif option in ("--iaas-ip"):
+            iaasIp=value
+        elif option in ("--iaas-mask"):
+            iaasMask=value
+        elif option in ("--iaas-gw"):
+            iaasGw=value
+        elif option in ("--app-vlan"):
+            appVlan=value
+        elif option in ("--app-ip"):
+            appIp=value
+        elif option in ("--app-mask"):
+            appMask=value
+        elif option in ("--app-gw"):
+            appGw=value
+        elif option in ("--bond-mode"):
+            bondMode=value
+#    print(action,name,profile,macAddress,interface,iaasIp,iaasMask,iaasGw,appVlan,appMask,appGw)
+except Exception as e:
+    usage()
+    print e
+    sys.exit()
+
+def writeLog(status,output,cobbler_cmd):
+    if status == 0:
+        f.write(curTime+", Execute successfully, "+cobbler_cmd+"\n")
+    else:
+        f.write(curTime+", Execute failure, "+output+","+cobbler_cmd+"\n") 
+
+ksmeta="appVlan="+appVlan+" appIp="+appIp+" appMask="+appMask+" appGw="+appGw+" iaasIp="+iaasIp+" iaasMask="+iaasMask+" iaasGw="+iaasGw+" bondMode="+bondMode
+if action == "add":
+# 判断mac地址在cobbler是否已经存在
+    (macstatus,existMac)=commands.getstatusoutput("cobbler system find --mac-address="+macAddress)
+# 判断名称在cobbler是否已经存在
+    (namestatus,existName)=commands.getstatusoutput("cobbler system find --name="+name)
+# 判断IaaS管理地址在cobbler是否已经存在
+    (ipstatus,existIp)=commands.getstatusoutput("cobbler system find --ip-address="+iaasIp)
+    if existMac:
+        cobbler_cmd="cobbler system remove --name="+existMac
+        (status,output)=commands.getstatusoutput(cobbler_cmd)
+        writeLog(status,output,cobbler_cmd)
+    if existName:
+        cobbler_cmd="cobbler system remove --name="+existName
+        (status,output)=commands.getstatusoutput(cobbler_cmd)
+        writeLog(status,output,cobbler_cmd)
+    if existIp:
+        cobbler_cmd="cobbler system remove --name="+existIp
+        (status,output)=commands.getstatusoutput(cobbler_cmd)
+        writeLog(status,output,cobbler_cmd)
+
+    cobbler_cmd="cobbler system "+action+" --name="+name+" --hostname="+name+" --profile="+profile+" --mac-address="+macAddress+" --interface="+interface+" --ip-address="+iaasIp+" --netmask="+iaasMask+" --gateway="+iaasGw+' --ksmeta="'+ksmeta+'"'
+    (status,output)=commands.getstatusoutput(cobbler_cmd)
+    writeLog(status,output,cobbler_cmd)
+elif action == "edit":
+    cobbler_cmd="cobbler system "+action+" --name="+name+" --hostname="+name+" --profile="+profile
+    (status,output)=commands.getstatusoutput(cobbler_cmd)
+    writeLog(status,output,cobbler_cmd)
+elif action == "remove":
+    cobbler_cmd="cobbler system "+action+" --name="+name
+    (status,output)=commands.getstatusoutput(cobbler_cmd)
+    writeLog(status,output,cobbler_cmd)
+
+#if status == 0:
+#    (status,output)=commands.getstatusoutput("cobbler sync")
+#    writeLog(status,output,"cobbler sync")
+#    (status,output)=commands.getstatusoutput("killall dhcpd ;service dhcpd restart")
+#    writeLog(status,output,"killall dhcpd ;service dhcpd restart")
+
+f.close()
