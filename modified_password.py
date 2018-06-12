@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 import sys,os,re,time,socket,getopt
@@ -116,12 +115,3 @@ def main():
         print("%s,%s,network unreachable or %s port is not open"%(host,timeinfo,hostport))
 
 main()
-
-
-
-
-
-
-
-
-
