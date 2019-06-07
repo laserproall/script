@@ -1,3 +1,2 @@
 # script
-backup
 hello GitHub!
